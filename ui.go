@@ -2,167 +2,164 @@ package main
 
 import (
 	"fmt"
-	"github.com/jroimartin/gocui"
 	"log"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/jroimartin/gocui"
 )
 
-var uiMutex sync.Mutex
+var chatView *gocui.View
 
+// initUI inicializa a interface do usuário baseada em terminal usando gocui
 func initUI() {
-	var err error
-	g, err = gocui.NewGui(gocui.OutputNormal)
+	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
-		log.Panicln(err)
+		log.Fatalf("Falha ao iniciar interface: %v", err)
 	}
 	defer g.Close()
+	G = g
 
+	g.Cursor = true
+	g.Mouse = true
 	g.SetManagerFunc(layout)
 
-	if err := keybindings(g); err != nil {
-		log.Panicln(err)
+	// Configurando atalhos de teclado
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+		log.Fatalf("Erro ao configurar tecla: %v", err)
 	}
 
-	// Mensagem de boas-vindas
-	updateChatView("🧙 Bem-vindo ao Magician-Chat!")
-	updateChatView("Digite /ajuda para ver os comandos disponíveis")
+	if err := g.SetKeybinding("input", gocui.KeyEnter, gocui.ModNone, sendMessage); err != nil {
+		log.Fatalf("Erro ao configurar tecla: %v", err)
+	}
+
+	// Foca na área de input
+	g.SetCurrentView("input")
+
+	// Exibe mensagem de boas-vindas
+	updateChatView(fmt.Sprintf("--- Bem-vindo ao Magician Chat, %s! ---", Nickname))
+	updateChatView("Use /ajuda para ver os comandos disponíveis.")
 
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
-		log.Panicln(err)
+		log.Fatalf("Erro na interface: %v", err)
 	}
 }
 
+// layout define o layout da interface
 func layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
-	if v, err := g.SetView("chat", 0, 0, maxX-1, maxY-3); err != nil {
+
+	// View do chat (ocupa maior parte da tela)
+	if v, err := g.SetView("chat", 0, 0, maxX-1, maxY-4); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.Title = "🧙 Magician-Chat"
+		v.Title = "📤 Magician Chat"
 		v.Wrap = true
 		v.Autoscroll = true
+		v.SetCursor(0, 0)
+		chatView = v
 	}
+
+	// View do input (parte inferior)
 	if v, err := g.SetView("input", 0, maxY-3, maxX-1, maxY-1); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.Title = "🪄 " + nickname
+		v.Title = "📝 Mensagem"
 		v.Editable = true
-		g.SetCurrentView("input")
+		v.Wrap = true
+		if _, err := g.SetCurrentView("input"); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
-func keybindings(g *gocui.Gui) error {
-	if err := g.SetKeybinding("input", gocui.KeyEnter, gocui.ModNone, sendMessage(g)); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
-		return err
-	}
-	return nil
-}
-
-func sendMessage(g *gocui.Gui) func(*gocui.Gui, *gocui.View) error {
-	return func(g *gocui.Gui, v *gocui.View) error {
-		msg := strings.TrimSpace(v.Buffer())
-		if msg == "" {
-			return nil
-		}
-
-		// Limpa o buffer de entrada
-		v.Clear()
-		v.SetCursor(0, 0)
-
-		// Verifica se é um comando
-		if strings.HasPrefix(msg, "/") {
-			isCommand, response := processMessage(msg)
-			if isCommand {
-				// Verifica se é para limpar a tela
-				if response == "[LIMPAR]" {
-					chatView, _ := g.View("chat")
-					chatView.Clear()
-					return nil
-				}
-
-				// Verifica se é para sair
-				if response == "Saindo..." {
-					updateChatView("👋 " + response)
-					time.Sleep(500 * time.Millisecond)
-					return gocui.ErrQuit
-				}
-
-				// Verifica se é para enviar arquivo
-				if strings.HasPrefix(msg, "/arquivo") {
-					parts := strings.Fields(msg)
-					if len(parts) < 2 {
-						updateChatView("❌ Uso: /arquivo <caminho> [peer]")
-						return nil
-					}
-
-					filePath := parts[1]
-					var targetPeer string
-					if len(parts) > 2 {
-						targetPeer = parts[2]
-					}
-
-					go func() {
-						if err := sendFile(filePath, targetPeer); err != nil {
-							updateChatView("❌ " + err.Error())
-						}
-					}()
-
-					return nil
-				}
-
-				// Comando normal, exibe resposta
-				updateChatView(response)
-				return nil
-			}
-		}
-
-		// Mensagem normal
-		chatView, _ := g.View("chat")
-		fmt.Fprintf(chatView, "[%s] %s\n", nickname, msg)
-
-		for _, peer := range peers {
-			fmt.Fprintf(peer, "%s\n", msg)
-		}
-
-		return nil
-	}
-}
-
-func quit(g *gocui.Gui, v *gocui.View) error {
-	logMessage("--- Sessão encerrada por " + nickname + " ---")
-	return gocui.ErrQuit
-}
-
-// Função para atualizar a view de chat em tempo real
+// updateChatView atualiza a view do chat com uma nova mensagem
 func updateChatView(message string) {
-	uiMutex.Lock()
-	defer uiMutex.Unlock()
-
-	// Verifica se a UI já foi inicializada
-	if g == nil {
-		log.Println(message)
+	if G == nil || chatView == nil {
 		return
 	}
 
-	g.Update(func(g *gocui.Gui) error {
-		v, err := g.View("chat")
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintln(v, message)
+	G.Update(func(g *gocui.Gui) error {
+		timestamp := time.Now().Format("15:04:05")
+		fmt.Fprintf(chatView, "[%s] %s\n", timestamp, message)
 		return nil
 	})
 }
 
-// Adiciona mensagem de sistema ao chat
-func addSystemMessage(message string) {
-	updateChatView("📢 " + message)
+// processMessage processa uma mensagem para verificar se é um comando
+func processMessage(message string) (bool, string) {
+	if !strings.HasPrefix(message, "/") {
+		return false, ""
+	}
+
+	parts := strings.Fields(message)
+	command := parts[0]
+	args := parts[1:]
+
+	switch command {
+	case "/ajuda", "/help":
+		return true, `
+📋 Comandos disponíveis:
+/ajuda              - Mostra esta ajuda
+/usuarios           - Lista os peers conectados
+/privado <peer> <msg> - Envia mensagem privada
+/limpar             - Limpa a tela
+/logs [n]           - Mostra últimas n mensagens do log
+/arquivo <path> [peer] - Envia arquivo
+/sair               - Fecha o programa
+`
+	case "/usuarios", "/users":
+		return true, cmdListUsers(args)
+	case "/privado", "/private":
+		return true, cmdPrivateMsg(args)
+	case "/limpar", "/clear":
+		return true, "[LIMPAR]"
+	case "/logs":
+		return true, cmdShowLogs(args)
+	case "/arquivo", "/file":
+		return true, cmdSendFile(args)
+	case "/sair", "/exit":
+		return true, "Saindo..."
+	default:
+		return true, fmt.Sprintf("Comando desconhecido: %s. Use /ajuda.", command)
+	}
+}
+
+// cmdShowLogs mostra as últimas mensagens do log
+func cmdShowLogs(args []string) string {
+	var lines int = 10 // Padrão: 10 linhas
+	if len(args) > 0 {
+		fmt.Sscanf(args[0], "%d", &lines)
+	}
+	return getLastLogEntries(lines)
+}
+
+// cmdSendFile inicia a transferência de um arquivo
+func cmdSendFile(args []string) string {
+	if len(args) < 1 {
+		return "Uso: /arquivo <caminho_do_arquivo> [peer_destino]"
+	}
+
+	filePath := args[0]
+	targetPeer := ""
+	if len(args) > 1 {
+		targetPeer = args[1]
+	}
+
+	go func() {
+		if err := sendFile(filePath, targetPeer); err != nil {
+			updateChatView(fmt.Sprintf("❌ Erro ao enviar arquivo: %v", err))
+		}
+	}()
+
+	return fmt.Sprintf("Iniciando envio do arquivo: %s", filePath)
+}
+
+// quit encerra a aplicação
+func quit(g *gocui.Gui, v *gocui.View) error {
+	return gocui.ErrQuit
 }

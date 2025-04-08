@@ -7,8 +7,12 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
+
+// Adicionar mutex para proteger o mapa Peers
+var peersMutex sync.Mutex
 
 func listenForPeers(port string) {
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
@@ -37,7 +41,11 @@ func listenForPeers(port string) {
 
 func connectToPeer(address string) {
 	// Evita conexões redundantes
-	if _, exists := Peers[address]; exists {
+	peersMutex.Lock()
+	_, exists := Peers[address]
+	peersMutex.Unlock()
+
+	if exists {
 		log.Println("Já conectado a", address)
 		return
 	}
@@ -52,7 +60,11 @@ func connectToPeer(address string) {
 			time.Sleep(5 * time.Second)
 
 			// Verifica se já nos conectamos enquanto esperávamos
-			if _, exists := Peers[address]; exists {
+			peersMutex.Lock()
+			_, exists := Peers[address]
+			peersMutex.Unlock()
+
+			if exists {
 				return
 			}
 			continue
@@ -67,7 +79,10 @@ func connectToPeer(address string) {
 			return
 		}
 
+		peersMutex.Lock()
 		Peers[address] = conn
+		peersMutex.Unlock()
+
 		updateChatView("Sistema: Conectado com sucesso a " + address)
 		go handleConnection(conn)
 		break
@@ -77,7 +92,11 @@ func connectToPeer(address string) {
 func handleConnection(conn net.Conn) {
 	remote := conn.RemoteAddr().String()
 
-	if _, exists := Peers[remote]; !exists {
+	peersMutex.Lock()
+	_, exists := Peers[remote]
+	peersMutex.Unlock()
+
+	if !exists {
 		reader := bufio.NewReader(conn)
 		clientPassword, _ := reader.ReadString('\n')
 		if strings.TrimSpace(clientPassword) != Password {
@@ -87,7 +106,11 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 		fmt.Fprintln(conn, "OK")
+
+		peersMutex.Lock()
 		Peers[remote] = conn
+		peersMutex.Unlock()
+
 		updateChatView("Sistema: Novo peer conectado de " + remote)
 		logMessage("Novo peer conectado: " + remote)
 	}
@@ -99,7 +122,11 @@ func handleConnection(conn net.Conn) {
 			log.Println("Peer desconectado:", remote)
 			updateChatView("Sistema: Peer desconectado: " + remote)
 			logMessage("Peer desconectado: " + remote)
+
+			peersMutex.Lock()
 			delete(Peers, remote)
+			peersMutex.Unlock()
+
 			conn.Close()
 			return
 		}
