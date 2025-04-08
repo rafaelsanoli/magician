@@ -3,25 +3,54 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
-// Adicionar mutex para proteger o mapa Peers
 var peersMutex sync.Mutex
 
-func listenForPeers(port string) {
+func loadTLSConfig() (*tls.Config, error) {
+	// Carrega certificado do peer
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 	if err != nil {
-		log.Fatal("Erro ao carregar TLS:", err)
+		return nil, fmt.Errorf("erro ao carregar certificados: %v", err)
 	}
 
-	config := &tls.Config{Certificates: []tls.Certificate{cert}}
-	ln, err := tls.Listen("tcp", ":"+port, config)
+	// Carrega certificado da autoridade (CA)
+	caCert, err := os.ReadFile("ca.pem")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao ler CA: %v", err)
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("erro ao adicionar CA ao pool")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caPool,
+		RootCAs:      caPool,
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	return tlsConfig, nil
+}
+
+func listenForPeers(port string) {
+	tlsConfig, err := loadTLSConfig()
+	if err != nil {
+		log.Fatal("Erro ao configurar TLS:", err)
+	}
+
+	ln, err := tls.Listen("tcp", ":"+port, tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,14 +81,22 @@ func connectToPeer(address string) {
 
 	updateChatView("Sistema: Tentando conectar a " + address)
 
+	// Carrega configuração segura
+	tlsConfig, err := loadTLSConfig()
+	if err != nil {
+		updateChatView(fmt.Sprintf("Erro TLS: %v", err))
+		return
+	}
+
+	tlsConfig.ServerName = "MagicianPeer" // Opcional: depende do CN do certificado do peer
+
 	for {
-		conn, err := tls.Dial("tcp", address, &tls.Config{InsecureSkipVerify: true})
+		conn, err := tls.Dial("tcp", address, tlsConfig)
 		if err != nil {
 			log.Println("Erro ao conectar. Tentando novamente em 5s...")
 			updateChatView("Sistema: Falha ao conectar a " + address + ". Tentando novamente em 5s...")
 			time.Sleep(5 * time.Second)
 
-			// Verifica se já nos conectamos enquanto esperávamos
 			peersMutex.Lock()
 			_, exists := Peers[address]
 			peersMutex.Unlock()
@@ -131,14 +168,12 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 
-		// Verifica se é uma transferência de arquivo
 		if strings.HasPrefix(message, "[FILE_TRANSFER]") {
 			data := strings.TrimPrefix(message, "[FILE_TRANSFER]")
 			handleFileChunk(strings.TrimSpace(data))
 			continue
 		}
 
-		// Verifica se é uma mensagem privada
 		if strings.HasPrefix(message, "[PRIVADO]") {
 			privateMsg := strings.TrimPrefix(message, "[PRIVADO]")
 			updateChatView(fmt.Sprintf("🔒 [Mensagem privada de %s] %s", remote, privateMsg))
@@ -146,7 +181,6 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 
-		// Mensagem normal
 		updateChatView("[" + remote + "] " + message)
 		logMessage(fmt.Sprintf("[%s] %s", remote, strings.TrimSpace(message)))
 	}

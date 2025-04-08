@@ -16,6 +16,16 @@ var Nickname, Password string
 var Peers = make(map[string]net.Conn)
 var G *gocui.Gui
 
+func initLogSystem() error {
+	os.MkdirAll("logs", 0755)
+	return nil
+}
+
+func initFileTransferSystem() error {
+	os.MkdirAll("recebidos", 0755)
+	return nil
+}
+
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Seu nome: ")
