@@ -32,10 +32,10 @@ git clone https://github.com/seuusuario/magician-chat.git
 cd magician-chat
 ```
 
-### 2. Gere os certificados TLS
+### 2. Gere os certificados TLS para uso do chat em estado LOCAL (futuramente online)
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 ```
 
 > Isso cria `cert.pem` e `key.pem` na raiz do projeto. Eles serão usados para criptografar as conexões.
