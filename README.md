@@ -42,7 +42,8 @@ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -node
 
 ### 3. Execute o chat
 
-```go run .
+```bash
+go run .
 ```
 
 Você será solicitado a informar:
