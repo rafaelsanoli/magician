@@ -16,16 +16,14 @@ import (
 var peersMutex sync.Mutex
 
 func loadTLSConfig() (*tls.Config, error) {
-	// Carrega certificado do peer
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 	if err != nil {
-		return nil, fmt.Errorf("erro ao carregar certificados: %v", err)
+		return nil, err
 	}
 
-	// Carrega certificado da autoridade (CA)
-	caCert, err := os.ReadFile("ca.pem")
+	caCert, err := os.ReadFile("cert.pem")
 	if err != nil {
-		return nil, fmt.Errorf("erro ao ler CA: %v", err)
+		return nil, fmt.Errorf("erro ao ler certificado: %v", err)
 	}
 
 	caPool := x509.NewCertPool()
@@ -35,7 +33,7 @@ func loadTLSConfig() (*tls.Config, error) {
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth:   tls.NoClientCert,
 		ClientCAs:    caPool,
 		RootCAs:      caPool,
 		MinVersion:   tls.VersionTLS12,
@@ -91,7 +89,11 @@ func connectToPeer(address string) {
 	tlsConfig.ServerName = "MagicianPeer" // Opcional: depende do CN do certificado do peer
 
 	for {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true, // ⚠️ aceita certificado autossinado (apenas para dev)
+		}
 		conn, err := tls.Dial("tcp", address, tlsConfig)
+
 		if err != nil {
 			log.Println("Erro ao conectar. Tentando novamente em 5s...")
 			updateChatView("Sistema: Falha ao conectar a " + address + ". Tentando novamente em 5s...")
@@ -107,7 +109,7 @@ func connectToPeer(address string) {
 			continue
 		}
 
-		fmt.Fprintf(conn, Password+"\n")
+		fmt.Fprintf(conn, "%s\n", Password)
 		response, _ := bufio.NewReader(conn).ReadString('\n')
 		if strings.TrimSpace(response) != "OK" {
 			log.Println("Senha incorreta. Conexão rejeitada.")
@@ -135,10 +137,19 @@ func handleConnection(conn net.Conn) {
 
 	if !exists {
 		reader := bufio.NewReader(conn)
-		clientPassword, _ := reader.ReadString('\n')
+		clientPassword, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Erro ao ler a senha:", err)
+			return
+		}
+		clientPassword = strings.TrimSpace(clientPassword)
+
+		// DEBUG: Mostrar senhas recebi	da e esperada
+		//fmt.Printf(">> Senha recebida: [%s]\n", strings.TrimSpace(clientPassword))
+		//fmt.Printf(">> Senha esperada: [%s]\n", Password)
 		if strings.TrimSpace(clientPassword) != Password {
 			fmt.Fprintln(conn, "DENIED")
-			updateChatView("Sistema: Conexão rejeitada de " + remote + " (senha incorreta)")
+			fmt.Printf(">>> Senha inválida de %s: [%s] (esperada: [%s])\n", conn.RemoteAddr(), clientPassword, Password)
 			conn.Close()
 			return
 		}

@@ -1,4 +1,4 @@
-# 🧙 Magician — Chat Anônimo P2P com TLS
+# 🧙 magician-chat — Chat Anônimo P2P com TLS
 
 Um chat anônimo de terminal, descentralizado e criptografado, com reconexão automática e interface no terminal.  
 Inspirado pelo [AnonChat](https://github.com/l50/anonchat), mas com foco em segurança, usabilidade e liberdade P2P.
@@ -28,7 +28,7 @@ Inspirado pelo [AnonChat](https://github.com/l50/anonchat), mas com foco em segu
 ### 1. Clone o projeto
 
 ```bash
-git clone https://github.com/rafaelsanoli/magician.git
+git clone https://github.com/seuusuario/magician-chat.git
 cd magician-chat
 ```
 
@@ -43,7 +43,7 @@ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -node
 ### 3. Execute o chat
 
 ```bash
-go run .
+go run *.go
 ```
 
 Você será solicitado a informar:
@@ -79,7 +79,7 @@ Você tem duas opções:
 ## 📦 Estrutura do projeto
 
 ```
-magician/
+magician-chat/
 ├── main.go         # Ponto de entrada do programa
 ├── peer.go         # Lógica P2P: conexão, TLS, reconexão e autenticação
 ├── ui.go           # Interface de usuário com gocui
@@ -106,34 +106,11 @@ Para visualizar os logs dentro do chat, use o comando `/logs [n]`, onde `n` é o
 
 Funcionalidades em desenvolvimento:
 
-    ✅ 📁 Finalização do sistema de envio de arquivos com reconstrução e progresso
-
-    🌐 Modo híbrido: P2P + servidor relay para conexões remotas
-
-    🧠 Criptografia de ponta a ponta opcional (além de TLS)
-
-    🧅 Integração com a rede Tor (via proxy SOCKS5 e .onion)
-
-    🔔 Sistema de notificações para eventos importantes
-
-    🗂️ Histórico de mensagens persistente com rolagem na interface
-
----
-
-🧅 **Integração com a Rede Tor (planejada)**
-
-A futura versão do Magician Chat incluirá suporte a comunicação via rede Tor para anonimato extremo.  
-Será possível rodar o chat com:
-
-    Proxy SOCKS5 apontando para o Tor local (127.0.0.1:9050)
-
-    Conexões entre peers através de .onion addresses
-
-    Relay via hidden service opcional
-
-    Comunicação criptografada ponta a ponta sobre o Tor
-
-Essa funcionalidade ainda está em desenvolvimento, mas é parte do roadmap oficial para garantir privacidade e descentralização totais.
+- 📁 Finalizar o sistema de envio de arquivos entre peers
+- 🌐 Modo híbrido: P2P + servidor relay para conexões remotas
+- 🧠 Criptografia de ponta a ponta opcional (além de TLS)
+- 🔔 Sistema de notificações para eventos importantes
+- 🔄 Histórico de mensagens persistente
 
 ---
 
