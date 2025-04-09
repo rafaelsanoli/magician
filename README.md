@@ -28,7 +28,7 @@ Inspirado pelo [AnonChat](https://github.com/l50/anonchat), mas com foco em segu
 ### 1. Clone o projeto
 
 ```bash
-git clone https://github.com/seuusuario/magician-chat.git
+git clone https://github.com/rafaelsanoli/magician.git
 cd magician-chat
 ```
 
