@@ -110,6 +110,7 @@ func processMessage(message string) (bool, string) {
 /limpar             - Limpa a tela
 /logs [n]           - Mostra últimas n mensagens do log
 /arquivo <path> [peer] - Envia arquivo
+/info               - Mostra as informações da Rede Tor
 /sair               - Fecha o programa
 `
 	case "/usuarios", "/users":
@@ -122,6 +123,8 @@ func processMessage(message string) (bool, string) {
 		return true, cmdShowLogs(args)
 	case "/arquivo", "/file":
 		return true, cmdSendFile(args)
+	case "/info":
+		return true, cmdInfo(args)
 	case "/sair", "/exit":
 		return true, "Saindo..."
 	default:

@@ -1,4 +1,4 @@
-# 🧙 magician-chat — Chat Anônimo P2P com TLS
+# 🧙 Magician — Chat Anônimo P2P com TLS
 
 Um chat anônimo de terminal, descentralizado e criptografado, com reconexão automática e interface no terminal.  
 Inspirado pelo [AnonChat](https://github.com/l50/anonchat), mas com foco em segurança, usabilidade e liberdade P2P.
@@ -32,10 +32,10 @@ git clone https://github.com/seuusuario/magician-chat.git
 cd magician-chat
 ```
 
-### 2. Gere os certificados TLS para uso do chat em estado LOCAL (futuramente online)
+### 2. Gere os certificados TLS
 
 ```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
 ```
 
 > Isso cria `cert.pem` e `key.pem` na raiz do projeto. Eles serão usados para criptografar as conexões.
@@ -144,6 +144,70 @@ Para instalar as dependências:
 ```bash
 go get github.com/jroimartin/gocui
 ```
+
+---
+
+## 🧅 Integração com a Rede Tor (Anonimato Total)
+
+O Magician Chat agora suporta comunicação totalmente anônima utilizando a rede Tor. Isso permite que peers conversem sem expor seus IPs, utilizando endereços `.onion`.
+
+### 📦 Como funciona:
+- O servidor escuta em `127.0.0.1:1337`
+- O Tor redireciona conexões de `.onion` para essa porta via `torrc`
+- O cliente detecta automaticamente se o endereço termina com `.onion` e se conecta via proxy SOCKS5 (`127.0.0.1:9050`)
+
+### 🚀 Como usar:
+1. Configure o arquivo `/etc/tor/torrc`:
+```
+HiddenServiceDir /var/lib/tor/magicianchat/
+HiddenServicePort 1337 127.0.0.1:1337
+```
+
+2. Reinicie o Tor:
+```
+sudo systemctl restart tor
+```
+
+3. Descubra seu endereço .onion:
+```
+sudo cat /var/lib/tor/magicianchat/hostname
+```
+
+4. Passe esse endereço para outro peer e peça para ele conectar assim:
+```
+qwzse7sxfxm3m33d5g3ojntoaid.onion:1337
+```
+
+5. O Magician detecta automaticamente e conecta pela rede Tor usando SOCKS5!
+
+---
+
+## 🆕 Comando: `/info`
+
+Digite `/info` no chat para visualizar:
+
+- Seu endereço `.onion` (automaticamente lido do sistema)
+- Seu IP local
+- Se o modo Tor está ativado
+
+Exemplo de saída:
+```
+🔍 Informações do Peer:
+🧅 Endereço .onion: vo6d2qwzse7sxfxm3m33d5g3ojntoaid.onion
+📡 IP local: 192.168.1.10
+🛡️  Modo: Tor ativado
+```
+
+---
+
+## ⚠️ Aviso Legal
+
+Este projeto tem finalidade educacional e de pesquisa.
+O Magician Chat foi criado como ferramenta de estudo sobre redes P2P, segurança digital e anonimato.
+
+O uso da rede Tor e criptografia deve ser sempre feito de forma responsável e legal.
+
+    ❗ O uso indevido da anonimidade digital para atividades ilegais pode constituir crime e é de responsabilidade única do usuário.
 
 ---
 

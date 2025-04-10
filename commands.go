@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jroimartin/gocui"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -42,7 +43,6 @@ func cmdPrivateMsg(args []string) string {
 	return fmt.Sprintf("Mensagem privada enviada para %s", targetAddr)
 }
 
-// Correção para o arquivo commands.go - Função cmdListUsers com mutex
 func cmdListUsers(args []string) string {
 	peersMutex.Lock()
 	peerCount := len(Peers)
@@ -63,7 +63,6 @@ func cmdListUsers(args []string) string {
 	return result
 }
 
-// Correção para o arquivo commands.go - Função sendMessage com mutex (usada em ui.go)
 func sendMessage(g *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		message := strings.TrimSpace(v.Buffer())
@@ -88,10 +87,13 @@ func sendMessage(g *gocui.Gui, v *gocui.View) error {
 				updateChatView(response)
 			}
 		} else {
+			// Formata a mensagem para envio (IMPORTANTE: sem prefixo AUTH para não confundir)
+			formattedMsg := fmt.Sprintf("[%s] %s", Nickname, message)
+
 			// Envia mensagem para todos os peers
 			peersMutex.Lock()
 			for _, conn := range Peers {
-				fmt.Fprintf(conn, "[%s] %s\n", Nickname, message)
+				fmt.Fprintf(conn, "%s\n", formattedMsg)
 			}
 			peersMutex.Unlock()
 
@@ -102,4 +104,30 @@ func sendMessage(g *gocui.Gui, v *gocui.View) error {
 		v.SetCursor(0, 0)
 	}
 	return nil
+}
+
+func cmdInfo(args []string) string {
+	onion, err := os.ReadFile("/var/lib/tor/magician_chat/hostname")
+	if err != nil {
+		return "Erro ao ler endereço .onion"
+	}
+
+	ip := getLocalIP()
+
+	resp := "🔍 Informações do Peer:\n"
+	resp += fmt.Sprintf("🧅 Endereço .onion: %s", strings.TrimSpace(string(onion)))
+	resp += fmt.Sprintf("\n📡 IP local: %s", ip)
+	resp += "\n🛡️  Modo: Tor ativado"
+
+	return resp
+}
+
+func getLocalIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "desconhecido"
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
 }
